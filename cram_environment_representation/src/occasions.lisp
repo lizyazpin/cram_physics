@@ -36,12 +36,9 @@
   (<- (object-in-hand ?object ?side)
     (bullet-world ?world)
     (robot ?robot)
-    (once
-     (object-designator-name ?object ?object-name)
-     (lisp-fun desig:current-desig ?object ?current-object)
-     (desig:desig-prop ?current-object (at ?object-location))
-     (desig:desig-prop ?object-location (in gripper)))
     (attached ?world ?robot ?link ?object-name)
+    (once
+     (object-designator-name ?object ?object-name))
     (end-effector-link ?side ?link))
 
   (<- (object-placed-at ?object ?location)
@@ -55,7 +52,19 @@
     (desig:obj-desig? object)
     (object-designator-name ?object ?object-name)
     (object-at-location ?_ ?object-name ?location))
-  
+
+  (<- (looking-at ?location)
+    (fail))
+
+  (<- (object-picked ?object)
+    (fail))
+
+  (<- (arms-parked)
+    (fail))
+
+  (<- (object-put ?object)
+    (fail))
+
   (<- (holds ?occasion)
     (call ?occasion)))
 
@@ -80,8 +89,7 @@
     (desig:desig-solutions ?current-location ?_)
     (or (object-pose ?world ?object-name ?object-pose)
         (object-bottom-pose ?world ?object-name ?object-pose))
-    (lisp-pred desig:validate-location-designator-solution
-               ?current-location ?object-pose))
+    (lisp-pred validate-location ?current-location ?object-pose))
 
   (<- (object-at-location ?world ?object-name ?location-designator)
     (not (bound ?location))
@@ -97,10 +105,43 @@ is returned."
    (remove-if-not (lambda (designator)
                     (and
                      (typep designator 'desig:object-designator)))
-                  (desig:get-all-designators))
+                  (reverse (desig:get-all-designators)))
    :test #'desig:desig-equal))
 
-(defmethod cram-plan-knowledge:holds (occasion &optional time-specification)
+(defmethod cram-occasions-events:clear-belief cram-environment-representation ()
+  (setf *current-bullet-world* (make-instance 'bt-reasoning-world))
+  (setup-world-database)
+  (set-robot-state-from-tf
+   cram-roslisp-common:*tf*
+   (var-value '?robot-instance (lazy-car (prolog `(and (robot ?robot)
+                                                       (%object ?_ ?robot ?robot-instance)))))))
+
+(defmethod cram-occasions-events:holds (occasion &optional time-specification)
   (if time-specification
       (prolog `(holds ?_  ,occasion ,time-specification))
       (prolog `(holds ,occasion))))
+
+(defvar *robot-urdf* nil)
+(defvar *kitchen-urdf* nil)
+
+(defun setup-world-database ()
+  (let ((robot (or *robot-urdf*
+                   (setf *robot-urdf*
+                         (cl-urdf:parse-urdf
+                          (roslisp:get-param "robot_description_lowres")))))
+        (kitchen (or *kitchen-urdf*
+                     (let ((kitchen-urdf-string
+                             (roslisp:get-param "kitchen_description" nil)))
+                       (when kitchen-urdf-string
+                         (setf *kitchen-urdf* (cl-urdf:parse-urdf
+                                               kitchen-urdf-string)))))))
+    (assert
+     (force-ll (prolog `(and
+                         (bullet-world ?w)
+                         (assert ?w (object static-plane floor ((0 0 0) (0 0 0 1))
+                                            :normal (0 0 1) :constant 0))
+                         (assert ?w (object semantic-map sem-map ((0 0 0) (0 0 0 1))
+                                            ,@(when kitchen
+                                                `(:urdf ,kitchen))))
+                         (robot ?robot)
+                         (assert ?w (object urdf ?robot ((0 0 0) (0 0 0 1)) :urdf ,robot))))))))

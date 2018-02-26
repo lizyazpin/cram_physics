@@ -1,4 +1,4 @@
-;;; Copyright (c) 2012, Lorenz Moesenlechner <moesenle@in.tum.de>
+;;; Copyright (c) 2012, Gayane Kazhoyan <kazhoyan@in.tum.de>
 ;;; All rights reserved.
 ;;; 
 ;;; Redistribution and use in source and binary forms, with or without
@@ -26,16 +26,32 @@
 ;;; ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 ;;; POSSIBILITY OF SUCH DAMAGE.
 
-(in-package :cl-user)
-
-(desig-props:def-desig-package cram-environment-representation
-  (:use #:common-lisp #:cram-plan-library #:cram-occasions-events
-        #:cram-bullet-reasoning #:cram-prolog #:cram-utilities)
-  (:shadowing-import-from
-   #:bullet-reasoning side robot at throughout object during holds)
-  (:shadowing-import-from #:cram-occasions-events event object-attached)
-  (:import-from #:cram-robot-interfaces end-effector-link)
-  (:export get-robot-object get-designator-object-name get-designator-object
-           object-designator-name)
-  (:import-from cram-roslisp-common *tf2*)
-  (:desig-properties pose in gripper z-offset at type))
+(defsystem spatial-relations-costmap
+  :author "eris"
+  :license "BSD"
+  
+  :depends-on (cram-designators
+               ;;cram-roslisp-common
+               cram-location-costmap
+               cram-prolog
+               roslisp
+               cram-semantic-map-costmap
+               cram-bullet-reasoning
+               cram-pr2-knowledge
+               cram-environment-representation
+               projection-process-modules
+               cram-occupancy-grid-costmap
+               ;;cram-plan-knowledge
+               cram-occasions-events
+               cram-bullet-reasoning-designators
+               pr2-manipulation-knowledge
+               ;;object-location-designators
+               cram-semantic-map-designators)
+  :components
+  ((:module "src"
+    :components
+    ((:file "package")
+     (:file "designator-integration" :depends-on ("package"))
+     (:file "cost-functions" :depends-on ("package"))
+     (:file "prolog" :depends-on ("package"))
+     (:file "knowledge" :depends-on ("package"))))))

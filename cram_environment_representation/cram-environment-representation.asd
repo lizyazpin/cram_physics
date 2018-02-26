@@ -30,18 +30,19 @@
   :author "Lorenz Moesenlechner"
   :license "BSD"
   
-  :depends-on (cram-reasoning
+  :depends-on (cram-prolog
                cram-utilities
                cram-projection
-               designators
+               cram-designators
                cram-roslisp-common
-               bullet-reasoning
-               cram-plan-knowledge
+               cram-bullet-reasoning
+               cram-occasions-events
                cram-plan-library)
   :components
   ((:module "src"
     :components
     ((:file "package")
-     (:file "event-handlers" :depends-on ("package" "utilities"))
+     (:file "object-perceptions" :depends-on ("package" "utilities"))
+     (:file "event-handlers" :depends-on ("package" "object-perceptions" "utilities"))
      (:file "occasions" :depends-on ("package" "utilities"))
      (:file "utilities" :depends-on ("package"))))))

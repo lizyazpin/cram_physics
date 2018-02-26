@@ -1,4 +1,4 @@
-;;; Copyright (c) 2012, Lorenz Moesenlechner <moesenle@in.tum.de>
+;;; Copyright (c) 2012, Gayane Kazhoyan <kazhoyan@in.tum.de>
 ;;; All rights reserved.
 ;;; 
 ;;; Redistribution and use in source and binary forms, with or without
@@ -28,14 +28,18 @@
 
 (in-package :cl-user)
 
-(desig-props:def-desig-package cram-environment-representation
-  (:use #:common-lisp #:cram-plan-library #:cram-occasions-events
-        #:cram-bullet-reasoning #:cram-prolog #:cram-utilities)
-  (:shadowing-import-from
-   #:bullet-reasoning side robot at throughout object during holds)
-  (:shadowing-import-from #:cram-occasions-events event object-attached)
-  (:import-from #:cram-robot-interfaces end-effector-link)
-  (:export get-robot-object get-designator-object-name get-designator-object
-           object-designator-name)
-  (:import-from cram-roslisp-common *tf2*)
-  (:desig-properties pose in gripper z-offset at type))
+(desig-props:def-desig-package spatial-relations-costmap
+    (:use #:desig
+          #:cram-roslisp-common
+          #:location-costmap
+          #:common-lisp
+          #:cram-prolog
+          #:cram-semantic-map-costmap
+          #:btr
+          #:cram-utilities
+          #:cram-environment-representation)
+  (:shadowing-import-from #:btr object pose object-pose width height)
+  (:desig-properties #:left-of #:right-of #:in-front-of #:behind
+                     #:for #:near #:far-from
+                     #:on #:name #:context #:object-count))
+

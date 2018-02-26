@@ -28,11 +28,6 @@
 
 (in-package :cram-environment-representation)
 
-(def-event (pick-up ?object ?side))
-(def-event (put-down ?object ?location))
-(def-event (location-change ?object))
-(def-event (object-perceived ?object))
-
 (defmethod on-event attach-objects ((event object-attached))
   (let* ((robot (get-robot-object))
          (current-event-object (desig:current-desig (event-object event)))
@@ -49,7 +44,9 @@
                (update-object-designator-location
                 current-event-object
                 (extend-designator-properties
-                 at `((pose ,(object-pose-in-frame object (event-link event))))))))
+                 at `((pose ,(object-pose-in-frame
+                              object
+                              (event-link event))))))))
             (t
              (attach-object robot object (event-link event) :loose nil)
              (update-object-designator-location
@@ -59,7 +56,7 @@
                `((pose ,(object-pose-in-frame object "base_footprint"))))))))
     (timeline-advance
      *current-timeline*
-     (apply-event
+     (make-event
       *current-bullet-world*
       `(pick-up ,(event-object event) ,(event-side event))))))
 
@@ -74,23 +71,24 @@
                               (event-object event)))))
     (timeline-advance
      *current-timeline*
-     (apply-event
+     (make-event
       *current-bullet-world*
       `(put-down ,(event-object event) ,(event-side event))))
     (timeline-advance
      *current-timeline*
-     (apply-event
+     (make-event
       *current-bullet-world*
       `(location-change ,(event-object event))))))
 
 (defmethod on-event robot-moved ((event robot-state-changed))
-  (unless cram-projection:*projecting*
+  (unless cram-projection:*projection-environment*
     (let ((robot (get-robot-object)))
       (when robot
-        (set-robot-state-from-tf cram-roslisp-common:*tf* robot))))
+        (set-robot-state-from-tf
+         cram-roslisp-common:*tf* robot :timestamp (event-timestamp event)))))
   (timeline-advance
    *current-timeline*
-   (apply-event
+   (make-event
     *current-bullet-world*
     `(location-change robot))))
 
@@ -111,6 +109,12 @@
        semantic-map-object (desig:object-identifier perceived-object)
        opening-distance))))
 
+(defmethod on-event object-perceived ((event object-perceived-event))
+  (unless cram-projection:*projection-environment*
+    (register-object-designator-data
+     (desig:reference (event-object-designator event))
+     :type (desig:desig-prop-value (event-object-designator event) 'type))))
+
 (defun update-object-designator-location (object-designator location-designator)
   (desig:make-designator
    'desig:object
@@ -120,11 +124,14 @@
 
 (defun get-supporting-object-bounding-box (object-name)
   (with-vars-bound (?supporting-name ?supporting-link)
-      (lazy-car (prolog `(supported-by ?_ ,object-name ?supporting-name ?supporting-link)))
-    (unless (or (is-var ?supporting-name) (is-var ?supporting-link))
-      (aabb (gethash
-             ?supporting-link
-             (links (object *current-bullet-world* ?supporting-name)))))))
+      (lazy-car (prolog `(or (supported-by ?_ ,object-name ?supporting-name ?supporting-link)
+                             (supported-by ?_ ,object-name ?supporting-name))))
+    (unless (is-var ?supporting-name)
+      (if (is-var ?supporting-link)
+          (aabb (object *current-bullet-world* ?supporting-name))
+          (aabb (gethash
+                 ?supporting-link
+                 (links (object *current-bullet-world* ?supporting-name))))))))
 
 (defun make-object-location (object-name)
   (let ((object (object *current-bullet-world* object-name)))
@@ -132,7 +139,7 @@
     (desig:make-designator
      'desig-props:location
      `((pose ,(tf:pose->pose-stamped
-               designators-ros:*fixed-frame* (cut:current-timestamp)
+               cram-tf:*fixed-frame* (cut:current-timestamp)
                (bt:pose object)))))))
 
 (defun make-object-location-in-gripper (object gripper-link)
@@ -140,7 +147,7 @@
   robot's gripper."
   (declare (type object object))
   (let* ((object-pose (tf:pose->pose-stamped
-                       designators-ros:*fixed-frame* 0.0
+                       cram-tf:*fixed-frame* 0.0
                        (btr:pose object)))
          (robot (get-robot-object)))
     (assert (member gripper-link (btr:object-attached robot object) :test #'equal))
@@ -162,12 +169,12 @@
   (declare (type object object)
            (type string frame))
   (tf:copy-pose-stamped
-   (tf:transform-pose
-    cram-roslisp-common:*tf*
-    :pose (tf:pose->pose-stamped
-           designators-ros:*fixed-frame* 0.0
+   (cl-tf2:ensure-pose-stamped-transformed
+    *tf2* (tf:pose->pose-stamped
+           cram-tf:*fixed-frame* 0.0
            (btr:pose object))
-    :target-frame frame)
+    frame
+    :use-current-ros-time t)
    :stamp 0.0))
 
 (defun extend-designator-properties (designator property-extension)
